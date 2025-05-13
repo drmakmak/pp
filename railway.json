@@ -1,0 +1,24 @@
+{
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@railway/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/"
+    }
+  ],
+  "variables": {
+    "DOMAIN": {
+      "description": "Your custom domain for short links",
+      "required": true
+    },
+    "PORT": {
+      "description": "Port to run the server on",
+      "value": "8080"
+    }
+  }
+}

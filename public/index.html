@@ -1,54 +1,117 @@
-<!-- index.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Link Shortener</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-        input, button { padding: 8px; margin: 5px 0; }
-        #result { margin-top: 20px; padding: 10px; background: #f0f0f0; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <h1>Link Shortener</h1>
-    <input type="text" id="originalUrl" placeholder="Enter URL to shorten" style="width: 100%;">
-    <input type="text" id="customPath" placeholder="Custom path (optional)">
-    <button onclick="shortenLink()">Shorten URL</button>
-    <div id="result"></div>
+    <div class="container">
+        <header>
+            <h1>URL Shortener</h1>
+            <p>Create short links for any URL</p>
+        </header>
+        
+        <main>
+            <div class="form-container">
+                <input type="url" id="urlInput" placeholder="Enter your long URL" required>
+                <div class="custom-path">
+                    <span id="domainDisplay">yourdomain.com/</span>
+                    <input type="text" id="customPath" placeholder="custom-path (optional)">
+                </div>
+                <button id="shortenBtn">Shorten URL</button>
+            </div>
+            
+            <div id="resultContainer" class="hidden">
+                <h2>Your Short URL</h2>
+                <div class="result-box">
+                    <a id="shortUrl" target="_blank" rel="noopener noreferrer"></a>
+                    <button id="copyBtn">Copy</button>
+                </div>
+                <p>Redirects to: <span id="originalUrl"></span></p>
+            </div>
+        </main>
+    </div>
 
     <script>
-        async function shortenLink() {
-            const originalUrl = document.getElementById('originalUrl').value;
-            const customPath = document.getElementById('customPath').value;
-            
-            if (!originalUrl) {
-                alert('Please enter a URL');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/shorten', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ originalUrl, customPath }),
-                });
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('urlInput');
+            const customPath = document.getElementById('customPath');
+            const shortenBtn = document.getElementById('shortenBtn');
+            const resultContainer = document.getElementById('resultContainer');
+            const shortUrl = document.getElementById('shortUrl');
+            const originalUrl = document.getElementById('originalUrl');
+            const copyBtn = document.getElementById('copyBtn');
+            const domainDisplay = document.getElementById('domainDisplay');
+
+            // Set current domain
+            domainDisplay.textContent = window.location.host + '/';
+
+            shortenBtn.addEventListener('click', shortenUrl);
+            copyBtn.addEventListener('click', copyToClipboard);
+
+            async function shortenUrl() {
+                const url = urlInput.value.trim();
+                const path = customPath.value.trim();
                 
-                const data = await response.json();
-                
-                if (response.ok) {
-                    document.getElementById('result').innerHTML = `
-                        <p>Shortened URL: <a href="${data.shortUrl}" target="_blank">${data.shortUrl}</a></p>
-                        <p>Redirects to: ${originalUrl}</p>
-                    `;
-                } else {
-                    document.getElementById('result').innerHTML = `Error: ${data.error}`;
+                if (!url) {
+                    alert('Please enter a URL');
+                    return;
                 }
-            } catch (error) {
-                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+
+                try {
+                    shortenBtn.disabled = true;
+                    shortenBtn.textContent = 'Shortening...';
+                    
+                    const response = await fetch('/api/shorten', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            url,
+                            customPath: path
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Failed to shorten URL');
+                    }
+
+                    const data = await response.json();
+                    displayResult(data);
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    shortenBtn.disabled = false;
+                    shortenBtn.textContent = 'Shorten URL';
+                }
             }
-        }
+
+            function displayResult(data) {
+                shortUrl.href = data.shortUrl;
+                shortUrl.textContent = data.shortUrl;
+                originalUrl.textContent = data.originalUrl;
+                resultContainer.classList.remove('hidden');
+                urlInput.value = '';
+                customPath.value = '';
+            }
+
+            function copyToClipboard() {
+                navigator.clipboard.writeText(shortUrl.href)
+                    .then(() => {
+                        copyBtn.textContent = 'Copied!';
+                        setTimeout(() => {
+                            copyBtn.textContent = 'Copy';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Copy failed:', err);
+                    });
+            }
+        });
     </script>
 </body>
 </html>
