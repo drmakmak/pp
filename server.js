@@ -26,7 +26,37 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+const validCredentials = {
+    username: process.env.ADMIN_USER || 'siavash',
+    password: process.env.ADMIN_PASS || '@Ss112233'
+};
+app.post('/login', express.json(), (req, res) => {
+    const { username, password } = req.body;
+    
+    if (username === validCredentials.username && password === validCredentials.password) {
+        req.session.authenticated = true;
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ 
+            success: false, 
+            message: 'Invalid username or password' 
+        });
+    }
+});
+const requireAuth = (req, res, next) => {
+    if (req.path === '/index1.html' && !req.session.authenticated) {
+        return res.redirect('/');
+    }
+    next();
+};
 
+app.use(requireAuth);
 // Database functions
 async function loadDatabase() {
   try {

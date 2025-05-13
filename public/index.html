@@ -1,123 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>URL Shortener</title>
-  <link rel="stylesheet" href="/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+        .login-container h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #error-message {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>URL Shortener</h1>
-      <p>Create short links for any URL</p>
-    </header>
-    
-    <main>
-      <div class="form-container">
-        <input type="url" id="urlInput" placeholder="https://example.com" required>
-        <div class="custom-path">
-          <span id="domainDisplay">short.url/</span>
-          <input type="text" id="customPath" placeholder="custom (optional)">
-        </div>
-        <button id="shortenBtn">Shorten URL</button>
-      </div>
-      
-      <div id="resultContainer" class="hidden">
-        <h2>Your Short URL</h2>
-        <div class="result-box">
-          <a id="shortUrl" target="_blank" rel="noopener noreferrer"></a>
-          <button id="copyBtn">Copy</button>
-        </div>
-        <p>Redirects to: <span id="originalUrl"></span></p>
-      </div>
-    </main>
-  </div>
+    <div class="login-container">
+        <h2>Login</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">Login</button>
+            <div id="error-message"></div>
+        </form>
+    </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const urlInput = document.getElementById('urlInput');
-      const customPath = document.getElementById('customPath');
-      const shortenBtn = document.getElementById('shortenBtn');
-      const resultContainer = document.getElementById('resultContainer');
-      const shortUrl = document.getElementById('shortUrl');
-      const originalUrl = document.getElementById('originalUrl');
-      const copyBtn = document.getElementById('copyBtn');
-      const domainDisplay = document.getElementById('domainDisplay');
-
-      // Set current domain display
-      domainDisplay.textContent = window.location.hostname + '/';
-
-      // Event listeners
-      shortenBtn.addEventListener('click', shortenUrl);
-      copyBtn.addEventListener('click', copyToClipboard);
-
-      async function shortenUrl() {
-        const url = urlInput.value.trim();
-        const path = customPath.value.trim();
-        
-        if (!url) {
-          alert('Please enter a URL');
-          return;
-        }
-
-        try {
-          shortenBtn.disabled = true;
-          shortenBtn.textContent = 'Shortening...';
-          
-          const response = await fetch('/api/shorten', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              url,
-              customPath: path 
-            }),
-          });
-
-          const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to shorten URL');
-          }
-
-          // Ensure absolute URL for display
-          const displayUrl = data.shortUrl.startsWith('/')
-            ? `${window.location.origin}${data.shortUrl}`
-            : data.shortUrl;
-
-          displayResult(displayUrl, data.originalUrl);
-        } catch (error) {
-          alert(`Error: ${error.message}`);
-        } finally {
-          shortenBtn.disabled = false;
-          shortenBtn.textContent = 'Shorten URL';
-        }
-      }
-
-      function displayResult(shortUrlValue, originalUrlValue) {
-        shortUrl.href = shortUrlValue;
-        shortUrl.textContent = shortUrlValue;
-        originalUrl.textContent = originalUrlValue;
-        resultContainer.classList.remove('hidden');
-        urlInput.value = '';
-        customPath.value = '';
-      }
-
-      function copyToClipboard() {
-        navigator.clipboard.writeText(shortUrl.href)
-          .then(() => {
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => {
-              copyBtn.textContent = 'Copy';
-            }, 2000);
-          })
-          .catch(err => {
-            console.error('Copy failed:', err);
-          });
-      }
-    });
-  </script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorElement = document.getElementById('error-message');
+            
+            // Simple client-side validation
+            if (!username || !password) {
+                errorElement.textContent = 'Please enter both username and password';
+                return;
+            }
+            
+            // Send to server for verification
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/index1.html';
+                } else {
+                    errorElement.textContent = data.message || 'Invalid credentials';
+                }
+            })
+            .catch(error => {
+                errorElement.textContent = 'Login failed. Please try again.';
+                console.error('Error:', error);
+            });
+        });
+    </script>
 </body>
 </html>

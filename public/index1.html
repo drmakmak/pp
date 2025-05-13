@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL Shortener</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>URL Shortener</h1>
+      <p>Create short links for any URL</p>
+    </header>
+    
+    <main>
+      <div class="form-container">
+        <input type="url" id="urlInput" placeholder="https://example.com" required>
+        <div class="custom-path">
+          <span id="domainDisplay">short.url/</span>
+          <input type="text" id="customPath" placeholder="custom (optional)">
+        </div>
+        <button id="shortenBtn">Shorten URL</button>
+      </div>
+      
+      <div id="resultContainer" class="hidden">
+        <h2>Your Short URL</h2>
+        <div class="result-box">
+          <a id="shortUrl" target="_blank" rel="noopener noreferrer"></a>
+          <button id="copyBtn">Copy</button>
+        </div>
+        <p>Redirects to: <span id="originalUrl"></span></p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlInput = document.getElementById('urlInput');
+      const customPath = document.getElementById('customPath');
+      const shortenBtn = document.getElementById('shortenBtn');
+      const resultContainer = document.getElementById('resultContainer');
+      const shortUrl = document.getElementById('shortUrl');
+      const originalUrl = document.getElementById('originalUrl');
+      const copyBtn = document.getElementById('copyBtn');
+      const domainDisplay = document.getElementById('domainDisplay');
+
+      // Set current domain display
+      domainDisplay.textContent = window.location.hostname + '/';
+
+      // Event listeners
+      shortenBtn.addEventListener('click', shortenUrl);
+      copyBtn.addEventListener('click', copyToClipboard);
+
+      async function shortenUrl() {
+        const url = urlInput.value.trim();
+        const path = customPath.value.trim();
+        
+        if (!url) {
+          alert('Please enter a URL');
+          return;
+        }
+
+        try {
+          shortenBtn.disabled = true;
+          shortenBtn.textContent = 'Shortening...';
+          
+          const response = await fetch('/api/shorten', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              url,
+              customPath: path 
+            }),
+          });
+
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to shorten URL');
+          }
+
+          // Ensure absolute URL for display
+          const displayUrl = data.shortUrl.startsWith('/')
+            ? `${window.location.origin}${data.shortUrl}`
+            : data.shortUrl;
+
+          displayResult(displayUrl, data.originalUrl);
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        } finally {
+          shortenBtn.disabled = false;
+          shortenBtn.textContent = 'Shorten URL';
+        }
+      }
+
+      function displayResult(shortUrlValue, originalUrlValue) {
+        shortUrl.href = shortUrlValue;
+        shortUrl.textContent = shortUrlValue;
+        originalUrl.textContent = originalUrlValue;
+        resultContainer.classList.remove('hidden');
+        urlInput.value = '';
+        customPath.value = '';
+      }
+
+      function copyToClipboard() {
+        navigator.clipboard.writeText(shortUrl.href)
+          .then(() => {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyBtn.textContent = 'Copy';
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Copy failed:', err);
+          });
+      }
+    });
+  </script>
+</body>
+</html>
