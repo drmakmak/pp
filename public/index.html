@@ -15,10 +15,10 @@
         
         <main>
             <div class="form-container">
-                <input type="url" id="urlInput" placeholder="Enter your long URL" required>
+                <input type="url" id="urlInput" placeholder="https://example.com" required>
                 <div class="custom-path">
-                    <span id="domainDisplay">yourdomain.com/</span>
-                    <input type="text" id="customPath" placeholder="custom-path (optional)">
+                    <span id="domainDisplay">short.url/</span>
+                    <input type="text" id="customPath" placeholder="custom (optional)">
                 </div>
                 <button id="shortenBtn">Shorten URL</button>
             </div>
@@ -48,45 +48,53 @@
             // Set current domain
             domainDisplay.textContent = window.location.host + '/';
 
+            // Event listeners
             shortenBtn.addEventListener('click', shortenUrl);
             copyBtn.addEventListener('click', copyToClipboard);
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') shortenUrl();
+            });
 
             async function shortenUrl() {
                 const url = urlInput.value.trim();
                 const path = customPath.value.trim();
                 
                 if (!url) {
-                    alert('Please enter a URL');
+                    showError('Please enter a URL');
                     return;
                 }
 
                 try {
-                    shortenBtn.disabled = true;
-                    shortenBtn.textContent = 'Shortening...';
+                    // Basic URL validation
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        showError('URL must start with http:// or https://');
+                        return;
+                    }
+
+                    toggleLoading(true);
                     
                     const response = await fetch('/api/shorten', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            url,
-                            customPath: path
+                        body: JSON.stringify({ 
+                            url,  // Matches backend expectation
+                            customPath: path 
                         }),
                     });
 
+                    const data = await response.json();
+                    
                     if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error || 'Failed to shorten URL');
+                        throw new Error(data.error || 'Failed to shorten URL');
                     }
 
-                    const data = await response.json();
                     displayResult(data);
                 } catch (error) {
-                    alert(error.message);
+                    showError(error.message, data?.details);
                 } finally {
-                    shortenBtn.disabled = false;
-                    shortenBtn.textContent = 'Shorten URL';
+                    toggleLoading(false);
                 }
             }
 
@@ -97,6 +105,15 @@
                 resultContainer.classList.remove('hidden');
                 urlInput.value = '';
                 customPath.value = '';
+            }
+
+            function showError(message, details = '') {
+                alert(`${message}\n${details}`);
+            }
+
+            function toggleLoading(isLoading) {
+                shortenBtn.disabled = isLoading;
+                shortenBtn.textContent = isLoading ? 'Shortening...' : 'Shorten URL';
             }
 
             function copyToClipboard() {
