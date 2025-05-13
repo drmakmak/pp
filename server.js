@@ -29,81 +29,57 @@ app.use((req, res, next) => {
 
 // Database functions
 async function loadDatabase() {
-    try {
-        const data = await fs.readFile(DATA_FILE, 'utf8');
-        return data ? JSON.parse(data) : {};
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            await fs.writeFile(DATA_FILE, JSON.stringify({}));
-            return {};
-        }
-        console.error('Database error:', error);
-        return {};
+  try {
+    const data = await fs.readFile(DATA_FILE, 'utf8');
+    return data ? JSON.parse(data) : {};
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      await fs.writeFile(DATA_FILE, JSON.stringify({}));
+      return {};
     }
+    console.error('Database error:', error);
+    return {};
+  }
 }
 
 async function saveUrl(shortId, originalUrl) {
-    try {
-        const db = await loadDatabase();
-        db[shortId] = originalUrl;
-        await fs.writeFile(DATA_FILE, JSON.stringify(db, null, 2));
-        return true;
-    } catch (error) {
-        console.error('Save error:', error);
-        return false;
-    }
+  try {
+    const db = await loadDatabase();
+    db[shortId] = originalUrl;
+    await fs.writeFile(DATA_FILE, JSON.stringify(db, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Save error:', error);
+    return false;
+  }
 }
 
 // API Endpoint
 app.post('/api/shorten', async (req, res) => {
+  try {
+    const { url: originalUrl, customPath } = req.body;
+    
+    if (!originalUrl) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
     try {
-        // Validate Content-Type
-        if (!req.is('application/json')) {
-            return res.status(400).json({ 
-                error: 'Invalid Content-Type',
-                details: 'Expected application/json' 
-            });
-        }
+      new URL(originalUrl);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
 
-        const { url: originalUrl, customPath } = req.body;
-        
-        // Validate required fields
-        if (!originalUrl) {
-            return res.status(400).json({ 
-                error: 'Missing required field',
-                details: 'The "url" field is required' 
-            });
-        }
+    const shortId = customPath?.trim() || uuidv4().substring(0, 8);
+    const db = await loadDatabase();
 
-        // Validate URL format
-        try {
-            new URL(originalUrl);
-        } catch {
-            return res.status(400).json({ 
-                error: 'Invalid URL format',
-                details: 'Please include http:// or https://' 
-            });
-        }
+    if (db[shortId]) {
+      return res.status(409).json({ error: 'Short path already exists' });
+    }
 
-        // Generate or use custom path
-        const shortId = customPath?.trim() || uuidv4().substring(0, 8);
-        const db = await loadDatabase();
-
-        if (db[shortId]) {
-            return res.status(409).json({ 
-                error: 'Short path already exists',
-                details: 'Please choose a different custom path' 
-            });
-        }
-
-        // Save to database
-        const success = await saveUrl(shortId, originalUrl);
-        if (!success) {
-            return res.status(500).json({ 
-                error: 'Failed to save URL',
-                details: 'Please try again later' 
-            });
-        }
+    const success = await saveUrl(shortId, originalUrl);
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to save URL' });
+    }
 
     const domain = getDomain();
     res.json({
@@ -136,7 +112,7 @@ app.get('/:shortId', async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy',
