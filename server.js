@@ -7,6 +7,26 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 8080;
 const DATA_FILE = path.join(__dirname, 'urls.json');
+const basicAuth = require('basic-auth');
+app.use(authMiddleware);
+const AUTH_USER = process.env.AUTH_USER || 'siavash';
+const AUTH_PASS = process.env.AUTH_PASS || '@Ss112233';
+// Authentication middleware
+const authMiddleware = (req, res, next) => {
+  // Skip auth for API endpoints
+  if (req.path.startsWith('/api') || req.path.startsWith('/:')) {
+    return next();
+  }
+
+  const user = basicAuth(req);
+  
+  if (!user || user.name !== AUTH_USER || user.pass !== AUTH_PASS) {
+    res.set('WWW-Authenticate', 'Basic realm="Link Shortener"');
+    return res.status(401).send('Authentication required');
+  }
+  
+  next();
+};
 
 // Configure domain handling for Railway
 const getDomain = () => {
