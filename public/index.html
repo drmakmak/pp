@@ -89,26 +89,12 @@
                 return;
             }
             
-            // Send to server for verification
-            fetch('/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username, password }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.href = '/index1.html';
-                } else {
-                    errorElement.textContent = data.message || 'Invalid credentials';
-                }
-            })
-            .catch(error => {
-                errorElement.textContent = 'Login failed. Please try again.';
-                console.error('Error:', error);
-            });
+            // Check if username and password are 'xnxx'
+            if (username === 'xnxx' && password === 'xnxx') {
+                window.location.href = 'index1.html';
+            } else {
+                errorElement.textContent = 'Invalid username or password';
+            }
         });
     </script>
 </body>
