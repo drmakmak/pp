@@ -5,29 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>URL Shortener</title>
   <link rel="stylesheet" href="/styles.css">
-  <script>
-    // Check for auth token on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      const token = sessionStorage.getItem('authToken');
-      if (!token && '${PROTECT_FRONTEND}' === 'true') {
-        window.location.href = '/login.html';
-      }
-      
-      // Include token in all fetch requests
-      const originalFetch = window.fetch;
-      window.fetch = async (url, options = {}) => {
-        const newOptions = { ...options };
-        newOptions.headers = {
-          ...newOptions.headers,
-          'X-Auth-Token': token
-        };
-        return originalFetch(url, newOptions);
-      };
-    });
-  </script>
 </head>
 <body>
-  <!-- Rest of your index.html content remains the same -->
   <div class="container">
     <header>
       <h1>URL Shortener</h1>
@@ -56,7 +35,6 @@
   </div>
 
   <script>
-    // Your existing JavaScript code
     document.addEventListener('DOMContentLoaded', () => {
       const urlInput = document.getElementById('urlInput');
       const customPath = document.getElementById('customPath');
@@ -67,42 +45,54 @@
       const copyBtn = document.getElementById('copyBtn');
       const domainDisplay = document.getElementById('domainDisplay');
 
-      domainDisplay.textContent = window.location.host + '/';
+      // Set current domain display
+      domainDisplay.textContent = window.location.hostname + '/';
 
+      // Event listeners
       shortenBtn.addEventListener('click', shortenUrl);
       copyBtn.addEventListener('click', copyToClipboard);
 
-      async function shortenUrl() {
-        const url = urlInput.value.trim();
-        const path = customPath.value.trim();
-        
-        if (!url) {
-          alert('Please enter a URL');
-          return;
-        }
+            async function shortenUrl() {
+                const url = urlInput.value.trim();
+                const path = customPath.value.trim();
+                
+                if (!url) {
+                    showError('Please enter a URL');
+                    return;
+                }
 
-        try {
-          shortenBtn.disabled = true;
-          shortenBtn.textContent = 'Shortening...';
-          
-          const response = await fetch('/api/shorten', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              url,
-              customPath: path 
-            }),
-          });
+                try {
+                    // Basic URL validation
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        showError('URL must start with http:// or https://');
+                        return;
+                    }
 
-          const data = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to shorten URL');
-          }
+                    toggleLoading(true);
+                    
+                    const response = await fetch('/api/shorten', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            url,  // Matches backend expectation
+                            customPath: path 
+                        }),
+                    });
 
-          displayResult(data.shortUrl, data.originalUrl);
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to shorten URL');
+                    }
+
+          // Ensure absolute URL for display
+          const displayUrl = data.shortUrl.startsWith('/')
+            ? `${window.location.origin}${data.shortUrl}`
+            : data.shortUrl;
+
+          displayResult(displayUrl, data.originalUrl);
         } catch (error) {
           alert(`Error: ${error.message}`);
         } finally {
@@ -111,28 +101,37 @@
         }
       }
 
-      function displayResult(shortUrlValue, originalUrlValue) {
-        shortUrl.href = shortUrlValue;
-        shortUrl.textContent = shortUrlValue;
-        originalUrl.textContent = originalUrlValue;
-        resultContainer.classList.remove('hidden');
-        urlInput.value = '';
-        customPath.value = '';
-      }
+            function displayResult(data) {
+                shortUrl.href = data.shortUrl;
+                shortUrl.textContent = data.shortUrl;
+                originalUrl.textContent = data.originalUrl;
+                resultContainer.classList.remove('hidden');
+                urlInput.value = '';
+                customPath.value = '';
+            }
 
-      function copyToClipboard() {
-        navigator.clipboard.writeText(shortUrl.href)
-          .then(() => {
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => {
-              copyBtn.textContent = 'Copy';
-            }, 2000);
-          })
-          .catch(err => {
-            console.error('Copy failed:', err);
-          });
-      }
-    });
-  </script>
+            function showError(message, details = '') {
+                alert(`${message}\n${details}`);
+            }
+
+            function toggleLoading(isLoading) {
+                shortenBtn.disabled = isLoading;
+                shortenBtn.textContent = isLoading ? 'Shortening...' : 'Shorten URL';
+            }
+
+            function copyToClipboard() {
+                navigator.clipboard.writeText(shortUrl.href)
+                    .then(() => {
+                        copyBtn.textContent = 'Copied!';
+                        setTimeout(() => {
+                            copyBtn.textContent = 'Copy';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('Copy failed:', err);
+                    });
+            }
+        });
+    </script>
 </body>
 </html>

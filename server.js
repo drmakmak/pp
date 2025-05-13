@@ -8,107 +8,107 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const DATA_FILE = path.join(__dirname, 'urls.json');
 
-// Password protection configuration
-const PROTECT_FRONTEND = process.env.PROTECT_FRONTEND === 'true';
-const FRONTEND_PASSWORD = process.env.FRONTEND_PASSWORD || '@Ss112233';
-const SESSION_SECRET = process.env.SESSION_SECRET || uuidv4();
-const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
-
-// Simple session storage
-const sessions = new Set();
+// Configure domain handling for Railway
+const getDomain = () => {
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return ''; // Use relative URLs on Railway
+  }
+  return process.env.DOMAIN || 'http://localhost:8080';
+};
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Custom basic auth middleware (no external dependencies)
-const checkAuth = (req, res, next) => {
-  // Skip auth for API endpoints and redirects
-  if (req.path.startsWith('/api') || req.path.startsWith('/:') || !PROTECT_FRONTEND) {
-    return next();
-  }
-
-  // Check session token
-  const token = req.headers['x-auth-token'] || req.query.token;
-  if (token && sessions.has(token)) {
-    return next();
-  }
-
-  // Check password in form submission
-  if (req.method === 'POST' && req.path === '/login' && req.body.password === FRONTEND_PASSWORD) {
-    const newToken = uuidv4();
-    sessions.add(newToken);
-    return res.json({ token: newToken });
-  }
-
-  // Serve login page
-  if (req.accepts('html')) {
-    return res.sendFile(path.join(__dirname, 'public', 'login.html'));
-  }
-
-  res.status(401).json({ error: 'Authentication required' });
-};
-
-app.use(checkAuth);
+// Request logging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
 // Database functions
 async function loadDatabase() {
-  try {
-    const data = await fs.readFile(DATA_FILE, 'utf8');
-    return data ? JSON.parse(data) : {};
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      await fs.writeFile(DATA_FILE, JSON.stringify({}));
-      return {};
+    try {
+        const data = await fs.readFile(DATA_FILE, 'utf8');
+        return data ? JSON.parse(data) : {};
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            await fs.writeFile(DATA_FILE, JSON.stringify({}));
+            return {};
+        }
+        console.error('Database error:', error);
+        return {};
     }
-    console.error('Database error:', error);
-    return {};
-  }
 }
 
 async function saveUrl(shortId, originalUrl) {
-  try {
-    const db = await loadDatabase();
-    db[shortId] = originalUrl;
-    await fs.writeFile(DATA_FILE, JSON.stringify(db, null, 2));
-    return true;
-  } catch (error) {
-    console.error('Save error:', error);
-    return false;
-  }
+    try {
+        const db = await loadDatabase();
+        db[shortId] = originalUrl;
+        await fs.writeFile(DATA_FILE, JSON.stringify(db, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Save error:', error);
+        return false;
+    }
 }
 
-// API Endpoints
+// API Endpoint
 app.post('/api/shorten', async (req, res) => {
-  try {
-    const { url: originalUrl, customPath } = req.body;
-    
-    if (!originalUrl) {
-      return res.status(400).json({ error: 'URL is required' });
-    }
-
     try {
-      new URL(originalUrl);
-    } catch {
-      return res.status(400).json({ error: 'Invalid URL format' });
-    }
+        // Validate Content-Type
+        if (!req.is('application/json')) {
+            return res.status(400).json({ 
+                error: 'Invalid Content-Type',
+                details: 'Expected application/json' 
+            });
+        }
 
-    const shortId = customPath?.trim() || uuidv4().substring(0, 8);
-    const db = await loadDatabase();
+        const { url: originalUrl, customPath } = req.body;
+        
+        // Validate required fields
+        if (!originalUrl) {
+            return res.status(400).json({ 
+                error: 'Missing required field',
+                details: 'The "url" field is required' 
+            });
+        }
 
-    if (db[shortId]) {
-      return res.status(409).json({ error: 'Short path already exists' });
-    }
+        // Validate URL format
+        try {
+            new URL(originalUrl);
+        } catch {
+            return res.status(400).json({ 
+                error: 'Invalid URL format',
+                details: 'Please include http:// or https://' 
+            });
+        }
 
-    const success = await saveUrl(shortId, originalUrl);
-    if (!success) {
-      return res.status(500).json({ error: 'Failed to save URL' });
-    }
+        // Generate or use custom path
+        const shortId = customPath?.trim() || uuidv4().substring(0, 8);
+        const db = await loadDatabase();
 
+        if (db[shortId]) {
+            return res.status(409).json({ 
+                error: 'Short path already exists',
+                details: 'Please choose a different custom path' 
+            });
+        }
+
+        // Save to database
+        const success = await saveUrl(shortId, originalUrl);
+        if (!success) {
+            return res.status(500).json({ 
+                error: 'Failed to save URL',
+                details: 'Please try again later' 
+            });
+        }
+
+    const domain = getDomain();
     res.json({
       originalUrl,
-      shortUrl: `${req.headers.host}/${shortId}`,
+      shortUrl: domain ? `${domain}/${shortId}` : `/${shortId}`,
       shortId
     });
   } catch (error) {
@@ -117,24 +117,15 @@ app.post('/api/shorten', async (req, res) => {
   }
 });
 
-// Login endpoint
-app.post('/login', (req, res) => {
-  if (req.body.password === FRONTEND_PASSWORD) {
-    const token = uuidv4();
-    sessions.add(token);
-    res.json({ token });
-  } else {
-    res.status(401).json({ error: 'Invalid password' });
-  }
-});
-
-// Redirect endpoint
+// Redirect Endpoint - Fixed to handle Railway routing
 app.get('/:shortId', async (req, res) => {
   try {
     const { shortId } = req.params;
-    const db = await loadDatabase();
+    console.log(`Attempting redirect for: ${shortId}`);
     
+    const db = await loadDatabase();
     if (db[shortId]) {
+      console.log(`Redirecting to: ${db[shortId]}`);
       return res.redirect(db[shortId]);
     }
     
@@ -145,17 +136,17 @@ app.get('/:shortId', async (req, res) => {
   }
 });
 
-// Health check
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy',
-    protected: PROTECT_FRONTEND,
-    uptime: process.uptime()
+    domain: getDomain(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend protected: ${PROTECT_FRONTEND}`);
+  console.log(`Configured domain: ${getDomain() || 'Using relative URLs'}`);
 });
