@@ -7,45 +7,50 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 8080;
 const DATA_FILE = path.join(__dirname, 'urls.json');
-const basicAuth = require('basic-auth');
-app.use(authMiddleware);
-const AUTH_USER = process.env.AUTH_USER || 'siavash';
-const AUTH_PASS = process.env.AUTH_PASS || '@Ss112233';
-// Authentication middleware
-const authMiddleware = (req, res, next) => {
-  // Skip auth for API endpoints
-  if (req.path.startsWith('/api') || req.path.startsWith('/:')) {
-    return next();
-  }
 
-  const user = basicAuth(req);
-  
-  if (!user || user.name !== AUTH_USER || user.pass !== AUTH_PASS) {
-    res.set('WWW-Authenticate', 'Basic realm="Link Shortener"');
-    return res.status(401).send('Authentication required');
-  }
-  
-  next();
-};
+// Password protection configuration
+const PROTECT_FRONTEND = process.env.PROTECT_FRONTEND === 'true';
+const FRONTEND_PASSWORD = process.env.FRONTEND_PASSWORD || '@Ss112233';
+const SESSION_SECRET = process.env.SESSION_SECRET || uuidv4();
+const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
-// Configure domain handling for Railway
-const getDomain = () => {
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-    return ''; // Use relative URLs on Railway
-  }
-  return process.env.DOMAIN || 'http://localhost:8080';
-};
+// Simple session storage
+const sessions = new Set();
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-  next();
-});
+// Custom basic auth middleware (no external dependencies)
+const checkAuth = (req, res, next) => {
+  // Skip auth for API endpoints and redirects
+  if (req.path.startsWith('/api') || req.path.startsWith('/:') || !PROTECT_FRONTEND) {
+    return next();
+  }
+
+  // Check session token
+  const token = req.headers['x-auth-token'] || req.query.token;
+  if (token && sessions.has(token)) {
+    return next();
+  }
+
+  // Check password in form submission
+  if (req.method === 'POST' && req.path === '/login' && req.body.password === FRONTEND_PASSWORD) {
+    const newToken = uuidv4();
+    sessions.add(newToken);
+    return res.json({ token: newToken });
+  }
+
+  // Serve login page
+  if (req.accepts('html')) {
+    return res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  }
+
+  res.status(401).json({ error: 'Authentication required' });
+};
+
+app.use(checkAuth);
 
 // Database functions
 async function loadDatabase() {
@@ -74,7 +79,7 @@ async function saveUrl(shortId, originalUrl) {
   }
 }
 
-// API Endpoint
+// API Endpoints
 app.post('/api/shorten', async (req, res) => {
   try {
     const { url: originalUrl, customPath } = req.body;
@@ -101,10 +106,9 @@ app.post('/api/shorten', async (req, res) => {
       return res.status(500).json({ error: 'Failed to save URL' });
     }
 
-    const domain = getDomain();
     res.json({
       originalUrl,
-      shortUrl: domain ? `${domain}/${shortId}` : `/${shortId}`,
+      shortUrl: `${req.headers.host}/${shortId}`,
       shortId
     });
   } catch (error) {
@@ -113,15 +117,24 @@ app.post('/api/shorten', async (req, res) => {
   }
 });
 
-// Redirect Endpoint - Fixed to handle Railway routing
+// Login endpoint
+app.post('/login', (req, res) => {
+  if (req.body.password === FRONTEND_PASSWORD) {
+    const token = uuidv4();
+    sessions.add(token);
+    res.json({ token });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
+
+// Redirect endpoint
 app.get('/:shortId', async (req, res) => {
   try {
     const { shortId } = req.params;
-    console.log(`Attempting redirect for: ${shortId}`);
-    
     const db = await loadDatabase();
+    
     if (db[shortId]) {
-      console.log(`Redirecting to: ${db[shortId]}`);
       return res.redirect(db[shortId]);
     }
     
@@ -136,13 +149,13 @@ app.get('/:shortId', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'healthy',
-    domain: getDomain(),
-    environment: process.env.NODE_ENV || 'development'
+    protected: PROTECT_FRONTEND,
+    uptime: process.uptime()
   });
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Configured domain: ${getDomain() || 'Using relative URLs'}`);
+  console.log(`Frontend protected: ${PROTECT_FRONTEND}`);
 });

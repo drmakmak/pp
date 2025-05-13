@@ -16,9 +16,23 @@
       "description": "Port to run the server on",
       "value": "8080"
     },
-    "NODE_ENV": {
-      "description": "Node environment",
-      "value": "production"
+    "PROTECT_FRONTEND": {
+      "description": "Enable password protection",
+      "value": "true"
+    },
+    "FRONTEND_PASSWORD": {
+      "description": "Password for the frontend",
+      "generator": {
+        "format": "bytes",
+        "length": 12
+      }
+    },
+    "SESSION_SECRET": {
+      "description": "Secret for session tokens",
+      "generator": {
+        "format": "bytes",
+        "length": 32
+      }
     }
   }
 }

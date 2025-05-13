@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Required</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .login-container {
+      max-width: 400px;
+      margin: 50px auto;
+      padding: 20px;
+      text-align: center;
+    }
+    .login-form input {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+    }
+    .login-form button {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Login Required</h2>
+    <form class="login-form" id="loginForm">
+      <input type="password" id="password" placeholder="Enter password" required>
+      <button type="submit">Login</button>
+    </form>
+    <div id="error" style="color: red; margin-top: 10px;"></div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const errorElement = document.getElementById('error');
+      
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Store token in sessionStorage
+          sessionStorage.setItem('authToken', data.token);
+          window.location.href = '/';
+        } else {
+          errorElement.textContent = data.error || 'Login failed';
+        }
+      } catch (err) {
+        errorElement.textContent = 'Network error. Please try again.';
+      }
+    });
+  </script>
+</body>
+</html>

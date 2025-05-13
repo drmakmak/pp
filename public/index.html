@@ -5,8 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>URL Shortener</title>
   <link rel="stylesheet" href="/styles.css">
+  <script>
+    // Check for auth token on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = sessionStorage.getItem('authToken');
+      if (!token && '${PROTECT_FRONTEND}' === 'true') {
+        window.location.href = '/login.html';
+      }
+      
+      // Include token in all fetch requests
+      const originalFetch = window.fetch;
+      window.fetch = async (url, options = {}) => {
+        const newOptions = { ...options };
+        newOptions.headers = {
+          ...newOptions.headers,
+          'X-Auth-Token': token
+        };
+        return originalFetch(url, newOptions);
+      };
+    });
+  </script>
 </head>
 <body>
+  <!-- Rest of your index.html content remains the same -->
   <div class="container">
     <header>
       <h1>URL Shortener</h1>
@@ -35,6 +56,7 @@
   </div>
 
   <script>
+    // Your existing JavaScript code
     document.addEventListener('DOMContentLoaded', () => {
       const urlInput = document.getElementById('urlInput');
       const customPath = document.getElementById('customPath');
@@ -45,10 +67,8 @@
       const copyBtn = document.getElementById('copyBtn');
       const domainDisplay = document.getElementById('domainDisplay');
 
-      // Set current domain display
-      domainDisplay.textContent = window.location.hostname + '/';
+      domainDisplay.textContent = window.location.host + '/';
 
-      // Event listeners
       shortenBtn.addEventListener('click', shortenUrl);
       copyBtn.addEventListener('click', copyToClipboard);
 
@@ -82,12 +102,7 @@
             throw new Error(data.error || 'Failed to shorten URL');
           }
 
-          // Ensure absolute URL for display
-          const displayUrl = data.shortUrl.startsWith('/')
-            ? `${window.location.origin}${data.shortUrl}`
-            : data.shortUrl;
-
-          displayResult(displayUrl, data.originalUrl);
+          displayResult(data.shortUrl, data.originalUrl);
         } catch (error) {
           alert(`Error: ${error.message}`);
         } finally {
